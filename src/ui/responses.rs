@@ -178,6 +178,19 @@ impl App {
                     None => self.queue.repeat.next(),
                 };
             }
+            // As pasting a song's link: the same checks (explicit songs, a jam) apply.
+            Cmd::Play(id) => self.apply(Action::OpenLink(Link::Song { id, list: None }, false)),
+            Cmd::Queue(id) => self.apply(Action::OpenLink(Link::Song { id, list: None }, true)),
+            Cmd::Seek(secs) => {
+                // A jam guest follows the host's position.
+                if !self.jam.guest() {
+                    self.seek_to(Duration::from_secs_f64(secs));
+                }
+            }
+            // `sync_remote` sends them.
+            Cmd::Lyrics(lang) => self.remote_lyrics = Some(lang.unwrap_or_else(|| self.lyric_prefs.target.clone())),
+            Cmd::Show => self.remote_show = true,
+            Cmd::Quit => self.remote_quit = true,
         }
     }
 
@@ -390,7 +403,12 @@ impl App {
             }
             Resp::LyricsExtras { video_id, source, target, extras } => {
                 if self.playing_id() == Some(video_id.as_str()) {
-                    self.lyrics_extras = Some((video_id, source, target, extras));
+                    // Asked for by a remote client in another language: not the one shown here.
+                    if self.remote_lyrics.as_deref() == Some(target.as_str()) && target != self.lyric_prefs.target {
+                        self.remote_extras = Some((video_id, source, target, extras));
+                    } else {
+                        self.lyrics_extras = Some((video_id, source, target, extras));
+                    }
                 }
             }
             Resp::Art { key, art } => {

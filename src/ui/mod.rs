@@ -420,6 +420,15 @@ pub struct App {
     /// Local WebSocket for a Stream Deck plugin. Off until Connections enables it.
     remote: crate::remote::Remote,
     remote_enabled: bool,
+    /// The language a remote client wants the lyrics in, once one has asked for them.
+    remote_lyrics: Option<String>,
+    /// Translation of the shown lyrics into that language, when it isn't the app's own
+    /// (video ID, source key, language, extras), and the one last asked for.
+    remote_extras: Option<(String, String, String, crate::translate::Extras)>,
+    remote_extras_asked: Option<(String, String, String)>,
+    /// A remote client asked to bring the window up, or to quit.
+    remote_show: bool,
+    remote_quit: bool,
     /// The Last.fm account scrobbles go to; a sign-in in progress and its outcome.
     lastfm_user: Option<String>,
     lastfm_busy: Arc<AtomicBool>,
@@ -859,6 +868,9 @@ pub struct App {
     tray_error: Option<String>,
     /// × has hidden the window behind the tray icon.
     in_tray: bool,
+    /// Run by another app: frames left in which to hide the window again. eframe shows the
+    /// window after its first frame whatever the viewport asked (`with_visible(false)`).
+    start_hidden: u8,
     /// Wayland: the minimized window has lost focus, so focus means it's back.
     tray_left_focus: bool,
     /// Closing for real (Quit from the tray, restart to update): don't hide.
@@ -962,6 +974,11 @@ impl App {
             artist_pics: HashMap::new(),
             remote: crate::remote::Remote::new(),
             remote_enabled,
+            remote_lyrics: None,
+            remote_extras: None,
+            remote_extras_asked: None,
+            remote_show: false,
+            remote_quit: false,
             lastfm_user: crate::lastfm::user(),
             lastfm_busy: Default::default(),
             lastfm_result: Default::default(),
@@ -1105,7 +1122,9 @@ impl App {
             notified: None,
             tray_failed: false,
             tray_error: None,
-            in_tray: false,
+            // Run by another app: the window starts hidden (see `main`).
+            in_tray: crate::remote::embedded(),
+            start_hidden: if crate::remote::embedded() { START_HIDDEN_FRAMES } else { 0 },
             tray_left_focus: false,
             exiting: false,
             window_hidden: false,
@@ -1781,6 +1800,7 @@ impl eframe::App for App {
         }
         self.mini.tick(ctx, now);
         self.tray_window(ctx, frame);
+        self.embedded_window(ctx, frame);
         self.sync_title(ctx);
         self.window_hidden = self.in_tray || ctx.input(|i| i.viewport().minimized == Some(true));
         // Nothing takes a video's frames now, while its decoder would go on working in bursts.
@@ -2367,6 +2387,8 @@ impl eframe::App for App {
     }
 }
 
+/// Run by another app, the first frames hide the window again (see `embedded_window`).
+const START_HIDDEN_FRAMES: u8 = 8;
 const SESSION_KEY: &str = "session";
 
 /// The heights offered for music videos. Decoding is on the CPU: 720p is easy, 1080p takes
@@ -2563,7 +2585,8 @@ fn too_big(size: egui::Vec2, monitor: egui::Vec2) -> bool {
 /// can't change while running, and the check touches the disk, so it runs once.
 fn updatable() -> bool {
     static UPDATABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *UPDATABLE.get_or_init(|| crate::update::installed() || crate::update::portable_dir().is_some() || crate::update::packaged())
+    // A copy another app runs is kept up to date by that app.
+    *UPDATABLE.get_or_init(|| !crate::remote::embedded() && (crate::update::installed() || crate::update::portable_dir().is_some() || crate::update::packaged()))
 }
 
 pub fn fmt_time(secs: u32) -> String {

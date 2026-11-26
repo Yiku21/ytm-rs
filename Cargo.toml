@@ -100,6 +100,8 @@ dbus = "0.9"
 keyring = { version = "3.6.3", features = ["apple-native"] }
 # The window's traffic lights on the app's own top row (ui/titlebar.rs).
 objc2 = "0.6"
+# Run by another app: no Dock icon or menu bar of its own (main.rs).
+winit = { version = "0.30.13", default-features = false }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSGeometry", "NSString", "NSUserDefaults"] }
 
