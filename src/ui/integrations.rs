@@ -557,8 +557,21 @@ impl App {
 
     /// Run by another app (`YTM_EMBEDDED`), × hides the window: that app decides when this
     /// copy quits. With "Close to tray" on, `tray_window` already does it.
+    ///
+    /// The window starts hidden, but eframe shows it once the first frame is painted (to
+    /// avoid a white flash), so the first frames hide it again until the other app asks.
     pub(super) fn embedded_window(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
-        if !crate::remote::embedded() || self.tray.is_some() || self.exiting {
+        if !crate::remote::embedded() || self.exiting {
+            return;
+        }
+        if self.start_hidden > 0 {
+            self.start_hidden -= 1;
+            if self.in_tray {
+                ctx.send_viewport_cmd(hide_command(is_wayland(frame)));
+                ctx.request_repaint();
+            }
+        }
+        if self.tray.is_some() {
             return;
         }
         if ctx.input(|i| i.viewport().close_requested()) {

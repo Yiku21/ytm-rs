@@ -868,6 +868,9 @@ pub struct App {
     tray_error: Option<String>,
     /// × has hidden the window behind the tray icon.
     in_tray: bool,
+    /// Run by another app: frames left in which to hide the window again. eframe shows the
+    /// window after its first frame whatever the viewport asked (`with_visible(false)`).
+    start_hidden: u8,
     /// Wayland: the minimized window has lost focus, so focus means it's back.
     tray_left_focus: bool,
     /// Closing for real (Quit from the tray, restart to update): don't hide.
@@ -1121,6 +1124,7 @@ impl App {
             tray_error: None,
             // Run by another app: the window starts hidden (see `main`).
             in_tray: crate::remote::embedded(),
+            start_hidden: if crate::remote::embedded() { START_HIDDEN_FRAMES } else { 0 },
             tray_left_focus: false,
             exiting: false,
             window_hidden: false,
@@ -2383,6 +2387,8 @@ impl eframe::App for App {
     }
 }
 
+/// Run by another app, the first frames hide the window again (see `embedded_window`).
+const START_HIDDEN_FRAMES: u8 = 8;
 const SESSION_KEY: &str = "session";
 
 /// The heights offered for music videos. Decoding is on the CPU: 720p is easy, 1080p takes
