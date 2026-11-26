@@ -161,7 +161,8 @@ fn main() -> eframe::Result {
     if backdrop::init(&data_dir(), renderer) | ui::init_pill(&data_dir(), renderer) {
         viewport = viewport.with_transparent(true);
     }
-    let options = eframe::NativeOptions {
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    let mut options = eframe::NativeOptions {
         viewport,
         renderer: match renderer {
             renderer::Renderer::OpenGl => eframe::Renderer::Glow,
@@ -184,6 +185,15 @@ fn main() -> eframe::Result {
         wgpu_options: renderer::wgpu_options(),
         ..Default::default()
     };
+    // Run by another app (`remote`): on the Mac it plays in the background as an accessory,
+    // without its own Dock icon or menu bar; its window still opens when that app asks.
+    #[cfg(target_os = "macos")]
+    if remote::embedded() {
+        options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+            builder.with_activation_policy(ActivationPolicy::Accessory);
+        }));
+    }
 
     // Set once the window and GPU context are up: a GL error after that (a failed
     // `swap_buffers` an hour in) isn't one at start-up and shouldn't switch renderers.
